@@ -5,12 +5,11 @@ import RegisterPage from '@/features/auth/RegisterPage'
 import VerifyPage from '@/features/auth/VerifyPage'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
-import DashboardPage from '@/features/dashboard/DashboardPage'
+import DevicesPage from '@/features/devices/DevicesPage'
+import DeviceDashboard from '@/features/dashboard/DeviceDashboard'
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
-  },
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 })
 
 export default function App() {
@@ -26,20 +25,26 @@ export default function App() {
           {/* Protected */}
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              {/* Các route khác sẽ thêm sau */}
-              <Route path="/sensors/soil" element={<div className="p-8 text-gray-500">Độ ẩm đất — coming soon</div>} />
-              <Route path="/sensors/air" element={<div className="p-8 text-gray-500">Không khí — coming soon</div>} />
-              <Route path="/control/watering" element={<div className="p-8 text-gray-500">Tưới nước — coming soon</div>} />
-              <Route path="/control/schedule" element={<div className="p-8 text-gray-500">Lịch tưới — coming soon</div>} />
-              <Route path="/control/logs" element={<div className="p-8 text-gray-500">Nhật ký — coming soon</div>} />
-              <Route path="/notifications" element={<div className="p-8 text-gray-500">Thông báo — coming soon</div>} />
-              <Route path="/settings" element={<div className="p-8 text-gray-500">Cấu hình — coming soon</div>} />
+              {/* USER routes */}
+              <Route path="/devices" element={<DevicesPage />} />
+              <Route path="/devices/:deviceId" element={<DeviceDashboard />} />
+              <Route path="/devices/:deviceId/watering" element={<div className="p-8 text-gray-500">Tưới nước — coming soon</div>} />
+              <Route path="/devices/:deviceId/schedule" element={<div className="p-8 text-gray-500">Lịch tưới — coming soon</div>} />
+              <Route path="/devices/:deviceId/logs" element={<div className="p-8 text-gray-500">Nhật ký — coming soon</div>} />
+              <Route path="/devices/:deviceId/notifications" element={<div className="p-8 text-gray-500">Thông báo — coming soon</div>} />
+              <Route path="/devices/:deviceId/settings" element={<div className="p-8 text-gray-500">Cấu hình — coming soon</div>} />
+
+              {/* ADMIN routes */}
+              <Route path="/admin/devices" element={<div className="p-8 text-gray-500">Admin Devices — coming soon</div>} />
+              <Route path="/admin/users" element={<div className="p-8 text-gray-500">Admin Users — coming soon</div>} />
+              <Route path="/admin/roles" element={<div className="p-8 text-gray-500">Admin Roles — coming soon</div>} />
+              <Route path="/admin/config" element={<div className="p-8 text-gray-500">Admin Config — coming soon</div>} />
+              <Route path="/admin/audit-log" element={<div className="p-8 text-gray-500">Audit Log — coming soon</div>} />
             </Route>
           </Route>
 
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/devices" replace />} />
+          <Route path="*" element={<Navigate to="/devices" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
