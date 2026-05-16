@@ -1,4 +1,3 @@
-import axios from "axios";
 import api from "./axios";
 import type {
   ApiResponse,
@@ -7,76 +6,31 @@ import type {
   PageResponse,
 } from "@/types";
 
-const REMOTE = "https://api.irrigation.studio";
-
-function remoteHeaders() {
-  const token = localStorage.getItem("accessToken");
-  return { Authorization: `Bearer ${token}` };
-}
-
-// ── User - My Devices (remote) ────────────────────────────────────────────────
 export const myDeviceApi = {
   getMyDevices: () =>
-    axios.get<ApiResponse<DeviceDTO[]>>(`${REMOTE}/api/v1/my/devices`, {
-      headers: remoteHeaders(),
-    }),
+    api.get<ApiResponse<DeviceDTO[]>>(`/api/v1/my/devices`),
 
   getDetail: (deviceId: string) =>
-    axios.get<ApiResponse<DeviceDTO>>(
-      `${REMOTE}/api/v1/my/devices/${deviceId}`,
-      {
-        headers: remoteHeaders(),
-      },
-    ),
+    api.get<ApiResponse<DeviceDTO>>(`/api/v1/my/devices/${deviceId}`),
 
   claimDevice: (chipId: string) =>
-    axios.post<ApiResponse<DeviceDTO>>(
-      `${REMOTE}/api/v1/my/devices/claim`,
-      { chipId },
-      {
-        headers: remoteHeaders(),
-      },
-    ),
+    api.post<ApiResponse<DeviceDTO>>(`/api/v1/my/devices/claim`, { chipId }),
 
   unclaimDevice: (deviceId: string) =>
-    axios.delete<ApiResponse<void>>(
-      `${REMOTE}/api/v1/my/devices/${deviceId}/unclaim`,
-      {
-        headers: remoteHeaders(),
-      },
-    ),
+    api.delete<ApiResponse<void>>(`/api/v1/my/devices/${deviceId}/unclaim`),
 
   updateName: (deviceId: string, name: string) =>
-    axios.patch<ApiResponse<DeviceDTO>>(
-      `${REMOTE}/api/v1/my/devices/${deviceId}/name`,
-      { name },
-      {
-        headers: remoteHeaders(),
-      },
-    ),
+    api.patch<ApiResponse<DeviceDTO>>(`/api/v1/my/devices/${deviceId}/name`, { name }),
 };
 
-// ── User - Device Config (remote) ─────────────────────────────────────────────
 export const deviceConfigApi = {
   getConfig: (deviceId: string) =>
-    axios.get<ApiResponse<DeviceConfigDTO>>(
-      `${REMOTE}/api/v1/my/devices/${deviceId}/config`,
-      {
-        headers: remoteHeaders(),
-      },
-    ),
+    api.get<ApiResponse<DeviceConfigDTO>>(`/api/v1/my/devices/${deviceId}/config`),
 
   updateConfig: (deviceId: string, body: Partial<DeviceConfigDTO>) =>
-    axios.put<ApiResponse<DeviceConfigDTO>>(
-      `${REMOTE}/api/v1/my/devices/${deviceId}/config`,
-      body,
-      {
-        headers: remoteHeaders(),
-      },
-    ),
+    api.put<ApiResponse<DeviceConfigDTO>>(`/api/v1/my/devices/${deviceId}/config`, body),
 };
 
-// ── Admin - Devices (local) ───────────────────────────────────────────────────
 export const adminDeviceApi = {
   getAll: (page = 0, size = 10) =>
     api.get<ApiResponse<PageResponse<DeviceDTO>>>("/api/v1/admin/devices", {
@@ -89,11 +43,9 @@ export const adminDeviceApi = {
   create: (body: { userId: string; name: string }) =>
     api.post<ApiResponse<DeviceDTO>>("/api/v1/admin/devices", body),
 
-  delete: (id: string) => api.delete<void>(`/api/v1/admin/devices/${id}`),
+  delete: (id: string) =>
+    api.delete<void>(`/api/v1/admin/devices/${id}`),
 
   calibrate: (id: string, body: object) =>
-    api.put<ApiResponse<DeviceDTO>>(
-      `/api/v1/admin/devices/${id}/calibrate`,
-      body,
-    ),
+    api.put<ApiResponse<DeviceDTO>>(`/api/v1/admin/devices/${id}/calibrate`, body),
 };

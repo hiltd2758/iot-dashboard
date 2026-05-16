@@ -139,3 +139,13 @@ export interface MqttStatusPayload {
   status: 'online' | 'offline'
   rssi: number
 }
+
+export interface DashboardSummaryDTO {
+  deviceId: string
+  status: string
+  statusDelay: boolean
+  latestSoilMoisturePercent: number | null
+  latestTemperatureCelsius: number | null
+  latestHumidityPercent: number | null
+  totalWaterAmountMlToday: number | null
+}

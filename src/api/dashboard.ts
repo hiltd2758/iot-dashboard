@@ -1,34 +1,64 @@
-import axios from 'axios'
-import type { ApiResponse, SoilSensorReadingDTO, AirSensorReadingDTO, SoilSensorHistoryDTO, AirSensorHistoryDTO, SoilSensorStatsDTO } from '@/types'
-
-const REMOTE = 'https://api.irrigation.studio'
-
-function headers() {
-  const token = localStorage.getItem('accessToken')
-  return { Authorization: `Bearer ${token}` }
-}
+import api from "@/api/axios";
+import type {
+  ApiResponse,
+  SoilSensorReadingDTO,
+  AirSensorReadingDTO,
+  SoilSensorHistoryDTO,
+  AirSensorHistoryDTO,
+  SoilSensorStatsDTO,
+  DashboardSummaryDTO,
+} from "@/types";
 
 export const dashboardApi = {
-  // Soil
   getLatestSoil: (deviceId: string) =>
-    axios.get<ApiResponse<SoilSensorReadingDTO>>(`${REMOTE}/api/v1/devices/${deviceId}/soil/latest`, { headers: headers() }),
+    api.get<ApiResponse<SoilSensorReadingDTO>>(
+      `/api/v1/my/devices/${deviceId}/soil/latest`,
+    ),
 
-  getSoilHistory: (deviceId: string, startDate: string, endDate: string, interval = 'RAW') =>
-    axios.get<ApiResponse<SoilSensorHistoryDTO[]>>(`${REMOTE}/api/v1/devices/${deviceId}/soil/history`, {
-      headers: headers(),
-      params: { startDate, endDate, interval },
-    }),
+  getLatestAir: (deviceId: string) =>
+    api.get<ApiResponse<AirSensorReadingDTO>>(
+      `/api/v1/my/devices/${deviceId}/air/latest`,
+    ),
+
+  getDashboardSummary: (deviceId: string) =>
+    api.get<ApiResponse<DashboardSummaryDTO>>(
+      `/api/v1/my/devices/${deviceId}/summary`,
+    ),
+
+  getSoilHistory: (
+    deviceId: string,
+    startDate: string,
+    endDate: string,
+    interval: "RAW" | "HOURLY" | "DAILY" = "HOURLY",
+  ) =>
+    api.get<ApiResponse<SoilSensorHistoryDTO[]>>(
+      `/api/v1/my/devices/${deviceId}/soil/history`,
+      {
+        params: { startDate, endDate, interval },
+      },
+    ),
+
+  getAirHistory: (
+    deviceId: string,
+    startDate: string,
+    endDate: string,
+    interval: "RAW" | "HOURLY" | "DAILY" = "HOURLY",
+  ) =>
+    api.get<ApiResponse<AirSensorHistoryDTO[]>>(
+      `/api/v1/my/devices/${deviceId}/air/history`,
+      {
+        params: { startDate, endDate, interval },
+      },
+    ),
 
   getSoilStats: (deviceId: string) =>
-    axios.get<ApiResponse<SoilSensorStatsDTO>>(`${REMOTE}/api/v1/devices/${deviceId}/soil/stats`, { headers: headers() }),
+    api.get<ApiResponse<SoilSensorStatsDTO>>(
+      `/api/v1/my/devices/${deviceId}/soil/stats`,
+    ),
 
-  // Air
-  getLatestAir: (deviceId: string) =>
-    axios.get<ApiResponse<AirSensorReadingDTO>>(`${REMOTE}/api/v1/devices/${deviceId}/air/latest`, { headers: headers() }),
+  startManualWatering: (deviceId: string) =>
+    api.post(`/api/v1/my/devices/${deviceId}/water/start`, {}),
 
-  getAirHistory: (deviceId: string, startDate: string, endDate: string, interval = 'RAW') =>
-    axios.get<ApiResponse<AirSensorHistoryDTO[]>>(`${REMOTE}/api/v1/devices/${deviceId}/air/history`, {
-      headers: headers(),
-      params: { startDate, endDate, interval },
-    }),
-}
+  controlDevice: (deviceId: string, command: "ON" | "OFF") =>
+    api.post(`/api/v1/my/devices/${deviceId}/control`, { command }),
+};

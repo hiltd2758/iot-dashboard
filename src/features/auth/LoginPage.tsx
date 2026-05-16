@@ -10,6 +10,7 @@ import { Droplets, Loader2, Eye, EyeOff } from 'lucide-react'
 export default function LoginPage() {
     const navigate = useNavigate()
     const setTokens = useAuthStore((s) => s.setTokens)
+    const setUser = useAuthStore((s) => s.setUser)
 
     const [form, setForm] = useState({ username: '', password: '' })
     const [loading, setLoading] = useState(false)
@@ -30,9 +31,13 @@ export default function LoginPage() {
         setLoading(true)
         try {
             const res = await authApi.login(form)
-            const { token, refreshToken } = res.data.data
+            console.log('login response:', res.data)
+
+            const { token, refreshToken, id, username, email, name, roles } = res.data.data
             setTokens(token, refreshToken)
-            navigate('/dashboard')
+            setUser({ id, username, email, name, roles, createdAt: '' })
+            const isAdmin = roles?.includes('ADMIN') ?? false
+            navigate(isAdmin ? '/admin/devices' : '/devices')
         } catch (err: unknown) {
             const msg =
                 (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
