@@ -18,7 +18,7 @@ export default function AdminSidebar() {
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem('refreshToken')
-    if (refreshToken) { try { await authApi.logout(refreshToken) } catch { /* ignore */ } }
+    if (refreshToken) { try { await authApi.logout(refreshToken) } catch { /* ignore */ }}
     logout()
     navigate('/login')
   }
@@ -77,7 +77,7 @@ export default function AdminSidebar() {
             className="text-white/50 hover:text-white transition-colors p-1 rounded"
             title="Đăng xuất"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4"/>
           </button>
         </div>
       </div>

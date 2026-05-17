@@ -19,6 +19,9 @@ import AdminAuditLogPage from '@/features/admin/audit-log/AdminAuditLogPage'
 import WateringLogsPage from './features/logs/WateringLogsPage'
 import DeviceSettingsPage from '@/features/settings/DeviceSettingsPage'
 
+import WateringSchedulePage from './features/schedules/WateringSchedulePage';
+
+
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -41,7 +44,7 @@ export default function App() {
               <Route path="/devices" element={<DevicesPage />} />
               <Route path="/devices/:deviceId" element={<DeviceDashboard />} />
               <Route path="/devices/:deviceId/watering" element={<div className="p-8 text-gray-500">Tưới nước — coming soon</div>} />
-              <Route path="/devices/:deviceId/schedule" element={<div className="p-8 text-gray-500">Lịch tưới — coming soon</div>} />
+              <Route path="/devices/:deviceId/schedule" element={<WateringSchedulePage />} />
               <Route path="/devices/:deviceId/logs" element={<WateringLogsPage />} />
               <Route path="/devices/:deviceId/notifications" element={<NotificationsPage />} />
               <Route path="/devices/:deviceId/settings" element={<DeviceSettingsPage />} />
