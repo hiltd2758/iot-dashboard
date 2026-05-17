@@ -41,7 +41,7 @@ export default function UserSidebar({ unreadCount = 0 }: UserSidebarProps) {
           <Droplets className="w-5 h-5 text-white" />
         </div>
         <div>
-          <div className="text-white font-semibold text-sm leading-tight">AquaIoT</div>
+          <div className="text-white font-semibold text-sm leading-tight">Nhóm Yêu Nước - IoT</div>
           <div className="text-white/50 text-xs">Smart Watering</div>
         </div>
       </div>

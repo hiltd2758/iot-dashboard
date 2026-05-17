@@ -30,7 +30,7 @@ export default function AdminSidebar() {
           <Droplets className="w-5 h-5 text-white" />
         </div>
         <div>
-          <div className="text-white font-semibold text-sm leading-tight">AquaIoT</div>
+          <div className="text-white font-semibold text-sm leading-tight">Nhóm Yêu Nước - IoT</div>
           <div className="text-white/50 text-xs">Admin Panel</div>
         </div>
       </div>
@@ -49,38 +49,38 @@ export default function AdminSidebar() {
         ))}
       </nav>
 
-     <div className="px-3 py-4 border-t border-white/10">
-  <div className="flex items-center gap-3 px-2 py-2">
-    {/* Avatar + name clickable */}
-    <button
-      onClick={() => navigate('/profile')}
-      className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity text-left"
-    >
-      <div
-        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0"
-        style={{ background: 'var(--green-main)' }}
-      >
-        {user?.name?.[0]?.toUpperCase() ?? 'A'}
-      </div>
+      <div className="px-3 py-4 border-t border-white/10">
+        <div className="flex items-center gap-3 px-2 py-2">
+          {/* Avatar + name clickable */}
+          <button
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity text-left"
+          >
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0"
+              style={{ background: 'var(--green-main)' }}
+            >
+              {user?.name?.[0]?.toUpperCase() ?? 'A'}
+            </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="text-white text-sm font-medium truncate">
-          {user?.name ?? 'Admin'}
+            <div className="flex-1 min-w-0">
+              <div className="text-white text-sm font-medium truncate">
+                {user?.name ?? 'Admin'}
+              </div>
+              <div className="text-white/50 text-xs">Administrator</div>
+            </div>
+          </button>
+
+          {/* Logout giữ nguyên */}
+          <button
+            onClick={handleLogout}
+            className="text-white/50 hover:text-white transition-colors p-1 rounded"
+            title="Đăng xuất"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
-        <div className="text-white/50 text-xs">Administrator</div>
       </div>
-    </button>
-
-    {/* Logout giữ nguyên */}
-    <button
-      onClick={handleLogout}
-      className="text-white/50 hover:text-white transition-colors p-1 rounded"
-      title="Đăng xuất"
-    >
-      <LogOut className="w-4 h-4" />
-    </button>
-  </div>
-</div>
     </aside>
   )
 }
