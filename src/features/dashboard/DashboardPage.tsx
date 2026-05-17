@@ -123,7 +123,7 @@ export default function DashboardPage() {
             icon={<Wind className="w-8 h-8" />}
           />
           <SensorCard
-            label="Nước tưới hôm nay"
+            label="Hôm nay"
             value={1110}
             unit="ml"
             sub="3 lần tưới hôm nay"

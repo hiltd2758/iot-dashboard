@@ -222,7 +222,7 @@ export default function DeviceDashboard() {
       if (on) {
         await dashboardApi.startManualWatering(deviceId) // có log
       } else {
-        await dashboardApi.controlDevice(deviceId, 'OFF') // tắt nhanh
+        await dashboardApi.stopManualWatering(deviceId, 500) // tắt nhanh
       }
       setPumpOn(on)
     } catch (err) {
@@ -335,7 +335,7 @@ export default function DeviceDashboard() {
             dataSource={getSource(sensor.humidity)}
           />
           <SensorCard
-            label="Nước tưới hôm nay"
+            label="Hôm nay"
             unit="ml"
             sub={waterToday !== null ? `${waterToday} ml tổng` : 'Chưa có dữ liệu'}
             value={waterToday !== null ? String(waterToday) : '--'}
@@ -449,7 +449,7 @@ export default function DeviceDashboard() {
                 Thiết bị offline – lệnh có thể không được thực thi
               </span>
             )} */}
-          </div>  
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <button
               onClick={() => handlePump(true)}

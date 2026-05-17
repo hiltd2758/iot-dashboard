@@ -6,7 +6,7 @@ import type { RoleDTO, PermissionDTO } from '@/types'
 // ── API ───────────────────────────────────────────────────────────────────────
 const rolesApi = {
     getRoles: () => api.get<{ data: { content: RoleDTO[] } }>('/api/v1/admin/roles'),
-    getPermissions: () => api.get<{ data: { content: PermissionDTO[] } }>('/api/v1/admin/roles/permissions'),
+    getPermissions: () => api.get<{ data: { content: PermissionDTO[] } }>('/api/v1/admin/roles/permissions?size=50'),
     createRole: (name: string, description?: string) =>
         api.post('/api/v1/admin/roles', { name, description }),
     createPermission: (name: string, description?: string) =>

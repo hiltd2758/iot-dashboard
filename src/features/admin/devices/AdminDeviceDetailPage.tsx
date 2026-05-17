@@ -144,12 +144,7 @@ export default function AdminDeviceDetailPage() {
             </div>
 
             {/* Hiệu chỉnh */}
-            <div className="bg-white rounded-[var(--radius)] border border-gray-100 shadow-sm divide-y divide-gray-50">
-              <SectionTitle title="Hiệu chỉnh (offset)" />
-              <InfoRow icon={<Thermometer />} label="Độ ẩm đất"       value={`${device.soilMoistureOffset}`} />
-              <InfoRow icon={<Thermometer />} label="Nhiệt độ"         value={`${device.airTemperatureOffset}`} />
-              <InfoRow icon={<Thermometer />} label="Độ ẩm không khí"  value={`${device.airHumidityOffset}`} />
-            </div>
+            <CalibrateSection deviceId={device.id} device={device} onSaved={loadDevice} />
           </>
         )}
       </div>
@@ -183,6 +178,63 @@ function InfoRow({ icon, label, value, mono }: {
       >
         {value}
       </span>
+    </div>
+  )
+}
+function CalibrateSection({ deviceId, device, onSaved }: {
+  deviceId: string
+  device: DeviceDTO
+  onSaved: () => void
+}) {
+  const [soil, setSoil] = useState(String(device.soilMoistureOffset ?? 0))
+  const [temp, setTemp] = useState(String(device.airTemperatureOffset ?? 0))
+  const [humidity, setHumidity] = useState(String(device.airHumidityOffset ?? 0))
+  const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await adminApi.calibrateDevice(deviceId, {
+        soilMoistureOffset: parseFloat(soil),
+        airTemperatureOffset: parseFloat(temp),
+        airHumidityOffset: parseFloat(humidity),
+      })
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 2000)
+      onSaved()
+    } catch { } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-[var(--radius)] border border-gray-100 shadow-sm">
+      <SectionTitle title="Hiệu chỉnh (offset)" />
+      {[
+        { label: 'Độ ẩm đất', value: soil, set: setSoil },
+        { label: 'Nhiệt độ (°C)', value: temp, set: setTemp },
+        { label: 'Độ ẩm không khí', value: humidity, set: setHumidity },
+      ].map((item) => (
+        <div key={item.label} className="flex items-center gap-4 px-6 py-4 border-b border-gray-50">
+          <span className="text-sm w-40 shrink-0" style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+          <input
+            type="number"
+            step="0.1"
+            value={item.value}
+            onChange={(e) => item.set(e.target.value)}
+            className="w-24 h-8 px-2 border border-gray-200 rounded-[6px] text-sm font-mono focus:outline-none focus:border-[#639922] text-right"
+          />
+        </div>
+      ))}
+      <div className="px-6 py-4 flex items-center gap-3">
+        <button onClick={handleSave} disabled={saving}
+          className="flex items-center gap-1.5 bg-[#639922] hover:bg-[#4a7219] text-white text-sm font-medium px-4 py-2 rounded-[8px] transition-colors disabled:opacity-50">
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          Lưu hiệu chỉnh
+        </button>
+        {success && <span className="text-xs text-green-600 font-medium">✓ Đã lưu</span>}
+      </div>
     </div>
   )
 }

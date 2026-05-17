@@ -24,10 +24,11 @@ export default function UserSidebar({ unreadCount = 0 }: UserSidebarProps) {
 
   const NAV = deviceId ? [
     { to: `/devices/${deviceId}`, icon: LayoutDashboard, label: 'Dashboard' },
-    { to: `/devices/${deviceId}/watering`, icon: Droplets, label: 'Tưới nước' },
+    // { to: `/devices/${deviceId}/watering`, icon: Droplets, label: 'Tưới nước' },
     { to: `/devices/${deviceId}/schedule`, icon: CalendarClock, label: 'Lịch tưới' },
     { to: `/devices/${deviceId}/logs`, icon: ScrollText, label: 'Nhật ký' },
-    { to: `/devices/${deviceId}/notifications`, icon: Bell, label: 'Thông báo', badge: unreadCount },
+    // { to: `/devices/${deviceId}/notifications`, icon: Bell, label: 'Thông báo', badge: unreadCount },
+    { to: `/devices/${deviceId}/notifications`, icon: Bell, label: 'Thông báo' },
     { to: `/devices/${deviceId}/settings`, icon: Settings, label: 'Cấu hình' },
   ] : []
 

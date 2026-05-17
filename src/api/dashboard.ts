@@ -61,4 +61,8 @@ export const dashboardApi = {
 
   controlDevice: (deviceId: string, command: "ON" | "OFF") =>
     api.post(`/api/v1/my/devices/${deviceId}/control`, { command }),
+  stopManualWatering: (deviceId: string, waterAmountMl?: number) =>
+    api.post(`/api/v1/my/devices/${deviceId}/water/stop`, {
+      waterAmountMl: waterAmountMl ?? 0,
+    }),
 };
