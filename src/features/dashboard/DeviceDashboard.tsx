@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { dashboardApi } from '@/api/dashboard'
@@ -15,9 +15,16 @@ import { cn } from '@/lib/utils'
 
 function getDateRange(rangeName: string) {
   const end = new Date()
-  const minutes = rangeName === '1m' ? 1 : 5
-  const start = new Date(end.getTime() - minutes * 60 * 1000)
-  return { startDate: start.toISOString(), endDate: end.toISOString(), interval: 'RAW' }
+  const start = new Date(
+    rangeName === '24h'
+      ? end.getTime() - 24 * 60 * 60 * 1000
+      : end.getTime() - 7 * 24 * 60 * 60 * 1000,
+  )
+  return {
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+    interval: rangeName === '24h' ? 'HOURLY' : 'DAILY',
+  }
 }
 
 function fmtTime(iso: string) {
@@ -26,6 +33,10 @@ function fmtTime(iso: string) {
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+}
+
+function fmtTimeFull(d: Date) {
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 type DataSource = 'live' | 'db' | 'loading'
@@ -59,22 +70,16 @@ function SensorCard({
             </span>
           )}
         </div>
-
         <div className="flex items-baseline gap-1">
           {dataSource === 'loading' ? (
             <span className="w-16 h-9 bg-gray-100 rounded animate-pulse inline-block" />
           ) : (
             <>
-              <span className="font-mono text-4xl font-semibold" style={{ color }}>
-                {value}
-              </span>
-              {unit && (
-                <span className="text-lg font-medium" style={{ color }}>{unit}</span>
-              )}
+              <span className="font-mono text-4xl font-semibold" style={{ color }}>{value}</span>
+              {unit && <span className="text-lg font-medium" style={{ color }}>{unit}</span>}
             </>
           )}
         </div>
-
         <p className="text-xs text-gray-400 mt-2 truncate">{sub}</p>
       </div>
       <div className="text-gray-200 mt-1 ml-2 shrink-0">{icon}</div>
@@ -85,15 +90,13 @@ function SensorCard({
 function RangeToggle({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex gap-1">
-      {(['1m', '5m'] as const).map((opt) => (
+      {(['24h', '7 ngày'] as const).map((opt) => (
         <button
           key={opt}
           onClick={() => onChange(opt)}
           className={cn(
             'text-xs px-2.5 py-1 rounded-md font-medium transition-colors',
-            value === opt
-              ? 'bg-[#639922] text-white'
-              : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
+            value === opt ? 'bg-[#639922] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
           )}
         >
           {opt}
@@ -103,6 +106,9 @@ function RangeToggle({ value, onChange }: { value: string; onChange: (v: string)
   )
 }
 
+// ── Poll interval (ms) ───────────────────────────────────────────────────────
+const POLL_INTERVAL = 4_000
+
 export default function DeviceDashboard() {
   const { deviceId } = useParams<{ deviceId: string }>()
   const navigate = useNavigate()
@@ -110,14 +116,16 @@ export default function DeviceDashboard() {
   const [soilRange, setSoilRange] = useState('24h')
   const [airRange, setAirRange] = useState('24h')
 
-  const { sensor, publish } = useStomp(deviceId ?? null)
+  // STOMP vẫn giữ — nếu sau này fix được thì tự dùng lại
+  const { sensor, publish, liveChartData } = useStomp(deviceId ?? null)
 
-  // ── REST fallback ────────────────────────────────────────────────────────
+  // ── REST polling — cards (5s) ─────────────────────────────────────────────
   const { data: summaryDB, isLoading: summaryLoading } = useQuery({
     queryKey: ['dashboard-summary', deviceId],
     queryFn: () => dashboardApi.getDashboardSummary(deviceId!),
     enabled: !!deviceId,
-    staleTime: 30_000,
+    refetchInterval: POLL_INTERVAL,
+    staleTime: 0,
     select: (res) => res.data.data,
   })
 
@@ -125,7 +133,8 @@ export default function DeviceDashboard() {
     queryKey: ['latest-soil', deviceId],
     queryFn: () => dashboardApi.getLatestSoil(deviceId!),
     enabled: !!deviceId,
-    staleTime: 30_000,
+    refetchInterval: POLL_INTERVAL,
+    staleTime: 0,
     select: (res) => res.data.data,
   })
 
@@ -133,21 +142,108 @@ export default function DeviceDashboard() {
     queryKey: ['latest-air', deviceId],
     queryFn: () => dashboardApi.getLatestAir(deviceId!),
     enabled: !!deviceId,
-    staleTime: 30_000,
+    refetchInterval: POLL_INTERVAL,
+    staleTime: 0,
     select: (res) => res.data.data,
   })
+
+  // ── REST polling — chart history (30s) ───────────────────────────────────
+  const { data: soilHistory, refetch: refetchSoil, isFetching: soilFetching } = useQuery({
+    queryKey: ['soil-history', deviceId, soilRange],
+    queryFn: () => {
+      const { startDate, endDate } = getDateRange(soilRange)
+      return dashboardApi.getSoilHistory(
+        deviceId!,
+        startDate,
+        endDate,
+        soilRange === '24h' ? 'HOURLY' : 'DAILY',
+      )
+    },
+    enabled: !!deviceId,
+    refetchInterval: 30_000,
+    select: (res) =>
+      res.data.data.map((d) => ({
+        time: soilRange === '24h' ? fmtTime(d.timestamp.toString()) : fmtDate(d.timestamp.toString()),
+        value: +(d.avgMoisturePercent ?? 0).toFixed(1),
+      })),
+  })
+
+  const { data: airHistory, isFetching: airFetching } = useQuery({
+    queryKey: ['air-history', deviceId, airRange],
+    queryFn: () => {
+      const { startDate, endDate } = getDateRange(airRange)
+      return dashboardApi.getAirHistory(
+        deviceId!,
+        startDate,
+        endDate,
+        airRange === '24h' ? 'HOURLY' : 'DAILY',
+      )
+    },
+    enabled: !!deviceId,
+    refetchInterval: 30_000,
+    select: (res) =>
+      res.data.data.map((d) => ({
+        time: airRange === '24h' ? fmtTime(d.timestamp.toString()) : fmtDate(d.timestamp.toString()),
+        temp: +(d.avgTemperatureCelsius ?? 0).toFixed(1),
+        humidity: +(d.avgHumidityPercent ?? 0).toFixed(1),
+      })),
+  })
+
+  // ── Tích lũy poll points mỗi 5s để vẽ đường realtime trên chart ──────────
+  // Mỗi lần summaryDB thay đổi (5s/lần) → thêm 1 điểm mới vào pollChartData
+  const [pollChartData, setPollChartData] = useState<
+    { time: string; soilMoisture: number | null; temperature: number | null; humidity: number | null }[]
+  >([])
+
+  useEffect(() => {
+    if (!summaryDB) return
+    const point = {
+      time: fmtTimeFull(new Date()),
+      soilMoisture: summaryDB.latestSoilMoisturePercent,
+      temperature: summaryDB.latestTemperatureCelsius,
+      humidity: summaryDB.latestHumidityPercent,
+    }
+    setPollChartData((prev) => [...prev.slice(-50), point])
+  }, [summaryDB])
+
+  // ── Chart data: REST history làm nền, poll/live points append cuối ────────
+  // Ưu tiên: STOMP live > poll 5s > REST history thuần
+  const extraPoints = sensor.connected && liveChartData.length > 0
+    ? liveChartData
+    : pollChartData
+
+  const soilChartData = useMemo(() => {
+    const base = soilHistory ?? []
+    if (extraPoints.length === 0) return base
+    const live = extraPoints.map((p) => ({
+      time: p.time,
+      value: +(p.soilMoisture ?? 0).toFixed(1),
+    }))
+    const lastRestTime = base.at(-1)?.time
+    return [...base, ...live.filter((p) => p.time !== lastRestTime)]
+  }, [soilHistory, extraPoints])
+
+  const airChartData = useMemo(() => {
+    const base = airHistory ?? []
+    if (extraPoints.length === 0) return base
+    const live = extraPoints.map((p) => ({
+      time: p.time,
+      temp: +(p.temperature ?? 0).toFixed(1),
+      humidity: +(p.humidity ?? 0).toFixed(1),
+    }))
+    const lastRestTime = base.at(-1)?.time
+    return [...base, ...live.filter((p) => p.time !== lastRestTime)]
+  }, [airHistory, extraPoints])
 
   // ── Merge STOMP + REST ───────────────────────────────────────────────────
   const isDbLoading = summaryLoading || soilLoading || airLoading
 
-  // Status: STOMP override REST
   const deviceStatus = sensor.deviceStatus !== 'unknown'
     ? sensor.deviceStatus
     : summaryDB?.status ?? 'unknown'
 
   const statusDelay = sensor.statusDelay
 
-  // Sensor values: STOMP override REST
   const soilMoisture = sensor.connected && sensor.soilMoisture !== null
     ? sensor.soilMoisture
     : summaryDB?.latestSoilMoisturePercent ?? latestSoilDB?.moisturePercent ?? null
@@ -176,65 +272,22 @@ export default function DeviceDashboard() {
 
   const fmt = (v: number | null) => (v !== null ? String(+v.toFixed(1)) : '--')
 
-  // ── Chart history ────────────────────────────────────────────────────────
-  const soilDates = getDateRange(soilRange)
-  const airDates = getDateRange(airRange)
-
-  const { data: soilHistory, refetch: refetchSoil, isFetching: soilFetching } = useQuery({
-    queryKey: ['soil-history', deviceId, soilRange],
-    queryFn: () =>
-      dashboardApi.getSoilHistory(
-        deviceId!,
-        soilDates.startDate,
-        soilDates.endDate,
-        soilRange === '24h' ? 'HOURLY' : 'DAILY',
-      ),
-    enabled: !!deviceId,
-    select: (res) =>
-      res.data.data.map((d) => ({
-        time: soilRange === '24h' ? fmtTime(d.timestamp.toString()) : fmtDate(d.timestamp.toString()),
-        value: +(d.avgMoisturePercent ?? 0).toFixed(1),
-      })),
-  })
-
-  const { data: airHistory, isFetching: airFetching } = useQuery({
-    queryKey: ['air-history', deviceId, airRange],
-    queryFn: () =>
-      dashboardApi.getAirHistory(
-        deviceId!,
-        airDates.startDate,
-        airDates.endDate,
-        airRange === '24h' ? 'HOURLY' : 'DAILY',
-      ),
-    enabled: !!deviceId,
-    select: (res) =>
-      res.data.data.map((d) => ({
-        time: airRange === '24h' ? fmtTime(d.timestamp.toString()) : fmtDate(d.timestamp.toString()),
-        temp: +(d.avgTemperatureCelsius ?? 0).toFixed(1),
-        humidity: +(d.avgHumidityPercent ?? 0).toFixed(1),
-      })),
-  })
+  const chartIsLive = sensor.connected && liveChartData.length > 0
 
   // ── Pump ─────────────────────────────────────────────────────────────────
   const handlePump = async (on: boolean) => {
     if (!deviceId) return
     try {
       if (on) {
-        await dashboardApi.startManualWatering(deviceId) // có log
+        await dashboardApi.startManualWatering(deviceId)
       } else {
-        await dashboardApi.stopManualWatering(deviceId, 500) // tắt nhanh
+        await dashboardApi.stopManualWatering(deviceId, 500)
       }
       setPumpOn(on)
     } catch (err) {
       console.error('Pump control failed', err)
     }
   }
-
-  useEffect(() => {
-    if (sensor.deviceStatus === 'online' && sensor.connected) {
-      // sync pump state from STOMP if backend pushes it
-    }
-  }, [sensor.deviceStatus, sensor.connected])
 
   return (
     <div className="flex flex-col h-full">
@@ -256,40 +309,23 @@ export default function DeviceDashboard() {
               <AlertTriangle className="w-3 h-3" /> Dữ liệu có thể bị trễ
             </div>
           )}
-
-          {/* Device status badge (online/offline từ data) */}
-          <div
-            className={cn(
-              'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full',
-              deviceStatus === 'online'
-                ? 'bg-green-50 text-green-600'
-                : 'bg-gray-100 text-gray-500',
-            )}
-          >
-            <div
-              className={cn(
-                'w-1.5 h-1.5 rounded-full',
-                deviceStatus === 'online'
-                  ? 'bg-green-500 animate-pulse'
-                  : 'bg-gray-400',
-              )}
-            />
+          <div className={cn(
+            'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full',
+            deviceStatus === 'online' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500',
+          )}>
+            <div className={cn(
+              'w-1.5 h-1.5 rounded-full',
+              deviceStatus === 'online' ? 'bg-green-500 animate-pulse' : 'bg-gray-400',
+            )} />
             {deviceStatus === 'online' ? 'Online' : deviceStatus === 'unknown' ? 'Unknown' : 'Offline'}
           </div>
-
-          {/* STOMP connection badge */}
-          <div
-            className={cn(
-              'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full',
-              sensor.connected
-                ? 'bg-green-50 text-green-600'
-                : 'bg-gray-100 text-gray-400',
-            )}
-          >
-            {sensor.connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {sensor.connected ? 'Realtime' : 'Offline – DB'}
+          <div className={cn(
+            'flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full',
+            sensor.connected ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-500',
+          )}>
+            {sensor.connected ? <Wifi className="w-3 h-3" /> : <Database className="w-3 h-3" />}
+            {sensor.connected ? 'Realtime' : `Polling ${POLL_INTERVAL / 1000}s`}
           </div>
-
           <button
             onClick={() => refetchSoil()}
             className={cn(
@@ -308,37 +344,28 @@ export default function DeviceDashboard() {
         {/* Sensor Cards */}
         <div className="grid grid-cols-4 gap-4">
           <SensorCard
-            label="Độ ẩm đất"
-            unit="%"
-            sub={lastUpdatedLabel}
-            value={fmt(soilMoisture)}
-            color="var(--color-soil)"
+            label="Độ ẩm đất" unit="%" sub={lastUpdatedLabel}
+            value={fmt(soilMoisture)} color="var(--color-soil)"
             icon={<Sprout className="w-8 h-8" />}
             dataSource={getSource(sensor.soilMoisture)}
           />
           <SensorCard
-            label="Nhiệt độ"
-            unit="°C"
-            sub={lastUpdatedLabel}
-            value={fmt(temperature)}
-            color="var(--color-temp)"
+            label="Nhiệt độ" unit="°C" sub={lastUpdatedLabel}
+            value={fmt(temperature)} color="var(--color-temp)"
             icon={<Thermometer className="w-8 h-8" />}
             dataSource={getSource(sensor.temperature)}
           />
           <SensorCard
-            label="Độ ẩm KK"
-            unit="%"
-            sub="Không khí"
-            value={fmt(humidity)}
-            color="var(--color-humidity)"
+            label="Độ ẩm KK" unit="%" sub="Không khí"
+            value={fmt(humidity)} color="var(--color-humidity)"
             icon={<Wind className="w-8 h-8" />}
             dataSource={getSource(sensor.humidity)}
           />
           <SensorCard
-            label="Hôm nay"
-            unit="ml"
-            sub={waterToday !== null ? `${waterToday} ml tổng` : 'Chưa có dữ liệu'}
-            value={waterToday !== null ? String(waterToday) : '--'}
+            label="Hôm nay" unit="ml"
+            sub={waterToday !== null ? `${waterToday.toFixed(1)} ml tổng` : 'Chưa có dữ liệu'}
+            value={waterToday !== null ? waterToday.toFixed(1) : '--'}
+
             color="var(--color-water)"
             icon={<Droplets className="w-8 h-8" />}
             dataSource={sensor.connected ? 'live' : 'db'}
@@ -353,18 +380,28 @@ export default function DeviceDashboard() {
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <Sprout className="w-4 h-4 text-[#639922]" />
                 Độ ẩm đất
-                {soilFetching && <span className="w-3 h-3 border-2 border-[#639922] border-t-transparent rounded-full animate-spin" />}
+                {chartIsLive
+                  ? <span className="flex items-center gap-1 text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Live
+                    </span>
+                  : soilFetching
+                    ? <span className="w-3 h-3 border-2 border-[#639922] border-t-transparent rounded-full animate-spin" />
+                    : <span className="flex items-center gap-1 text-[10px] font-medium text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                        Poll {POLL_INTERVAL / 1000}s
+                      </span>
+                }
               </div>
               <RangeToggle value={soilRange} onChange={setSoilRange} />
             </div>
 
-            {soilHistory?.length === 0 ? (
+            {soilChartData.length === 0 ? (
               <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">
                 Không có dữ liệu trong khoảng thời gian này
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={soilHistory ?? []} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <AreaChart data={soilChartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                   <defs>
                     <linearGradient id="soilGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#639922" stopOpacity={0.15} />
@@ -378,15 +415,8 @@ export default function DeviceDashboard() {
                     contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 12 }}
                     formatter={(v) => [`${v}%`, 'Độ ẩm đất']}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#639922"
-                    strokeWidth={2}
-                    fill="url(#soilGrad)"
-                    dot={{ r: 3, fill: '#639922', strokeWidth: 0 }}
-                    activeDot={{ r: 5 }}
-                  />
+                  <Area type="monotone" dataKey="value" stroke="#639922" strokeWidth={2}
+                    fill="url(#soilGrad)" dot={{ r: 3, fill: '#639922', strokeWidth: 0 }} activeDot={{ r: 5 }} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -398,18 +428,28 @@ export default function DeviceDashboard() {
               <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <Thermometer className="w-4 h-4 text-[#e24b4a]" />
                 Nhiệt độ / Độ ẩm KK
-                {airFetching && <span className="w-3 h-3 border-2 border-[#e24b4a] border-t-transparent rounded-full animate-spin" />}
+                {chartIsLive
+                  ? <span className="flex items-center gap-1 text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Live
+                    </span>
+                  : airFetching
+                    ? <span className="w-3 h-3 border-2 border-[#e24b4a] border-t-transparent rounded-full animate-spin" />
+                    : <span className="flex items-center gap-1 text-[10px] font-medium text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                        Poll {POLL_INTERVAL / 1000}s
+                      </span>
+                }
               </div>
               <RangeToggle value={airRange} onChange={setAirRange} />
             </div>
 
-            {airHistory?.length === 0 ? (
+            {airChartData.length === 0 ? (
               <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">
                 Không có dữ liệu trong khoảng thời gian này
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={airHistory ?? []} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <LineChart data={airChartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis yAxisId="temp" domain={[20, 40]} tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
@@ -433,22 +473,13 @@ export default function DeviceDashboard() {
             Điều khiển bơm nhanh
           </div>
           <div className="flex items-center gap-2 mb-5">
-            <div
-              className={cn(
-                'w-3 h-3 rounded-full transition-all',
-                pumpOn
-                  ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]'
-                  : 'bg-gray-300',
-              )}
-            />
+            <div className={cn(
+              'w-3 h-3 rounded-full transition-all',
+              pumpOn ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-gray-300',
+            )} />
             <span className="text-sm text-gray-600 font-medium">
               {pumpOn ? 'Bơm đang hoạt động' : 'Bơm đã tắt'}
             </span>
-            {/* {!sensor.connected && (
-              <span className="ml-auto text-xs text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">
-                Thiết bị offline – lệnh có thể không được thực thi
-              </span>
-            )} */}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <button
@@ -456,9 +487,7 @@ export default function DeviceDashboard() {
               disabled={pumpOn}
               className={cn(
                 'flex items-center justify-center gap-2 py-3.5 rounded-[12px] text-sm font-semibold transition-all',
-                pumpOn
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-[#639922] text-white hover:bg-[#4a7219] shadow-sm',
+                pumpOn ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#639922] text-white hover:bg-[#4a7219] shadow-sm',
               )}
             >
               <Play className="w-4 h-4" /> Bật bơm
@@ -468,9 +497,7 @@ export default function DeviceDashboard() {
               disabled={!pumpOn}
               className={cn(
                 'flex items-center justify-center gap-2 py-3.5 rounded-[12px] text-sm font-semibold border transition-all',
-                !pumpOn
-                  ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white'
-                  : 'border-red-200 text-red-500 hover:bg-red-50',
+                !pumpOn ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-red-200 text-red-500 hover:bg-red-50',
               )}
             >
               <Square className="w-4 h-4" /> Tắt bơm

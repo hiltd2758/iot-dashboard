@@ -10,7 +10,7 @@ interface ScheduleDTO {
   id: string
   deviceId: string
   cronExpression: string
-  waterAmountMl: number
+  durationInMinutes: number
   enabled: boolean
   nextRunAt: string | null
 }
@@ -19,9 +19,9 @@ interface ScheduleDTO {
 const scheduleApi = {
   getAll: (deviceId: string) =>
     api.get<{ data: ScheduleDTO[] }>(`/api/devices/${deviceId}/schedules`),
-  create: (deviceId: string, body: { cronExpression: string; waterAmountMl: number; enabled: boolean }) =>
+  create: (deviceId: string, body: { cronExpression: string; durationInMinutes: number; enabled: boolean }) =>
     api.post<{ data: ScheduleDTO }>(`/api/devices/${deviceId}/schedules`, body),
-  update: (deviceId: string, id: string, body: { cronExpression: string; waterAmountMl: number; enabled: boolean }) =>
+  update: (deviceId: string, id: string, body: { cronExpression: string; durationInMinutes: number; enabled: boolean }) =>
     api.put<{ data: ScheduleDTO }>(`/api/devices/${deviceId}/schedules/${id}`, body),
   toggle: (deviceId: string, id: string, enabled: boolean) =>
     api.patch(`/api/devices/${deviceId}/schedules/${id}/toggle`, { enabled }),
@@ -29,14 +29,13 @@ const scheduleApi = {
     api.delete(`/api/devices/${deviceId}/schedules/${id}`),
 }
 
-// ── Cron helpers ──────────────────────────────────────────────────────────────
+// ── Cron presets (5-field: phút giờ ngày tháng thứ) ──────────────────────────
 const CRON_PRESETS = [
-  { label: 'Mỗi ngày 6:00', value: '0 0 6 * * ?' },
-  { label: 'Mỗi ngày 18:00', value: '0 0 18 * * ?' },
-  { label: 'Mỗi ngày 6:00 & 18:00', value: '0 0 6,18 * * ?' },
-  { label: 'Thứ 2-6 lúc 7:00', value: '0 0 7 * * MON-FRI' },
-  { label: 'Thứ 7 & CN lúc 8:00', value: '0 0 8 * * SAT,SUN' },
-  { label: 'Tuỳ chỉnh', value: '' },
+  { label: 'Mỗi ngày 6:00', value: '0 6 * * *' },
+  { label: 'Mỗi ngày 18:00', value: '0 18 * * *' },
+  { label: 'Mỗi ngày 6 & 18h', value: '0 6,18 * * *' },
+  { label: 'T2-T6 lúc 7:00', value: '0 7 * * 1-5' },
+  { label: 'T7 & CN lúc 8:00', value: '0 8 * * 6,0' },
 ]
 
 function fmtNext(iso: string | null) {
@@ -46,38 +45,27 @@ function fmtNext(iso: string | null) {
 
 // ── Schedule Form Modal ───────────────────────────────────────────────────────
 function ScheduleModal({
-  deviceId,
-  initial,
-  onClose,
-  onSaved,
+  deviceId, initial, onClose, onSaved,
 }: {
   deviceId: string
   initial?: ScheduleDTO
   onClose: () => void
   onSaved: () => void
 }) {
-  const [preset, setPreset] = useState(
-    initial ? (CRON_PRESETS.find((p) => p.value === initial.cronExpression)?.value ?? '') : CRON_PRESETS[0].value
-  )
-  const [cron, setCron] = useState(initial?.cronExpression ?? '0 0 6 * * ?')
-  const [amount, setAmount] = useState(String(initial?.waterAmountMl ?? 500))
+  const [cron, setCron] = useState(initial?.cronExpression ?? '0 6 * * *')
+  const [duration, setDuration] = useState(String(initial?.durationInMinutes ?? 5))
   const [enabled, setEnabled] = useState(initial?.enabled ?? true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const handlePreset = (val: string) => {
-    setPreset(val)
-    if (val) setCron(val)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!cron.trim()) { setError('Vui lòng nhập biểu thức cron'); return }
-    const ml = parseFloat(amount)
-    if (isNaN(ml) || ml <= 0) { setError('Lượng nước phải > 0'); return }
+    const mins = parseInt(duration)
+    if (isNaN(mins) || mins <= 0) { setError('Thời gian tưới phải > 0'); return }
     setSaving(true)
     try {
-      const body = { cronExpression: cron.trim(), waterAmountMl: ml, enabled }
+      const body = { cronExpression: cron.trim(), durationInMinutes: mins, enabled }
       if (initial) {
         await scheduleApi.update(deviceId, initial.id, body)
       } else {
@@ -101,22 +89,18 @@ function ScheduleModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Preset */}
+          {/* Presets */}
           <div>
             <label className="text-xs font-medium text-gray-500 mb-2 block">Chọn nhanh</label>
             <div className="flex flex-wrap gap-1.5">
               {CRON_PRESETS.map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => handlePreset(p.value)}
+                <button key={p.label} type="button" onClick={() => setCron(p.value)}
                   className={cn(
                     'text-xs px-3 py-1.5 rounded-full border transition-colors',
-                    (preset === p.value && p.value !== '') || (p.value === '' && !CRON_PRESETS.slice(0,-1).map(x=>x.value).includes(cron))
+                    cron === p.value
                       ? 'bg-[#639922] text-white border-[#639922]'
                       : 'bg-white text-gray-500 border-gray-200 hover:border-[#639922]'
-                  )}
-                >
+                  )}>
                   {p.label}
                 </button>
               ))}
@@ -128,21 +112,20 @@ function ScheduleModal({
             <label className="text-xs font-medium text-gray-500 mb-1.5 block">Biểu thức Cron *</label>
             <input
               value={cron}
-              onChange={(e) => { setCron(e.target.value); setPreset('') }}
-              placeholder="0 0 6 * * ?"
+              onChange={(e) => setCron(e.target.value)}
+              placeholder="0 6 * * *"
               className="w-full h-10 px-3 border border-gray-200 rounded-[8px] text-sm font-mono focus:outline-none focus:border-[#639922]"
             />
-            <p className="text-[10px] text-gray-400 mt-1">Giây Phút Giờ Ngày Tháng Thứ</p>
+            <p className="text-[10px] text-gray-400 mt-1">Phút Giờ Ngày Tháng Thứ (VD: 0 6 * * * = 6:00 mỗi ngày)</p>
           </div>
 
-          {/* Water amount */}
+          {/* Duration */}
           <div>
-            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Lượng nước (ml) *</label>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Thời gian tưới (phút) *</label>
             <input
-              type="number"
-              min={1}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              type="number" min={1}
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
               className="w-full h-10 px-3 border border-gray-200 rounded-[8px] text-sm focus:outline-none focus:border-[#639922]"
             />
           </div>
@@ -150,11 +133,8 @@ function ScheduleModal({
           {/* Enabled */}
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-gray-700">Kích hoạt ngay</span>
-            <button
-              type="button"
-              onClick={() => setEnabled((v) => !v)}
-              className={cn('relative w-11 h-6 rounded-full transition-colors', enabled ? 'bg-[#639922]' : 'bg-gray-200')}
-            >
+            <button type="button" onClick={() => setEnabled((v) => !v)}
+              className={cn('relative w-11 h-6 rounded-full transition-colors', enabled ? 'bg-[#639922]' : 'bg-gray-200')}>
               <span className={cn('absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform', enabled ? 'translate-x-6' : 'translate-x-1')} />
             </button>
           </div>
@@ -214,17 +194,14 @@ export default function WateringSchedulePage() {
             <p className="text-xs text-gray-400 mt-0.5">{schedules.length} lịch đã tạo</p>
           </div>
         </div>
-        <button
-          onClick={() => setModal('create')}
-          className="flex items-center gap-1.5 bg-[#639922] hover:bg-[#4a7219] text-white text-sm font-medium px-4 py-2 rounded-[8px] transition-colors"
-        >
+        <button onClick={() => setModal('create')}
+          className="flex items-center gap-1.5 bg-[#639922] hover:bg-[#4a7219] text-white text-sm font-medium px-4 py-2 rounded-[8px] transition-colors">
           <Plus className="w-4 h-4" /> Tạo lịch
         </button>
       </div>
 
       {/* Content */}
       <div className="flex-1 p-8 space-y-3 overflow-auto">
-
         {isLoading && (
           <div className="flex items-center justify-center py-16 gap-2 text-gray-400 text-sm">
             <Loader2 className="w-4 h-4 animate-spin" /> Đang tải...
@@ -256,7 +233,6 @@ export default function WateringSchedulePage() {
             'bg-white rounded-[12px] border shadow-sm p-5 flex items-center gap-4 transition-all',
             s.enabled ? 'border-gray-100' : 'border-gray-100 opacity-60'
           )}>
-            {/* Toggle */}
             <button
               onClick={() => toggle({ id: s.id, enabled: !s.enabled })}
               className={cn(
@@ -267,7 +243,6 @@ export default function WateringSchedulePage() {
               <Power className="w-4 h-4" />
             </button>
 
-            {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-mono text-sm font-semibold text-gray-800">{s.cronExpression}</span>
@@ -279,13 +254,12 @@ export default function WateringSchedulePage() {
                 </span>
               </div>
               <div className="flex items-center gap-3 text-xs text-gray-400">
-                <span className="text-[#639922] font-semibold">{s.waterAmountMl} ml</span>
+                <span className="text-[#639922] font-semibold">{s.durationInMinutes} phút</span>
                 <span>·</span>
                 <span>Lần tới: {fmtNext(s.nextRunAt)}</span>
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center gap-1 shrink-0">
               <button onClick={() => setModal(s)}
                 className="p-2 rounded-lg text-gray-300 hover:text-[#639922] hover:bg-green-50 transition-colors">
